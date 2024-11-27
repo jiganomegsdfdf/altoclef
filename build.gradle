@@ -48,7 +48,7 @@ dependencies {
         //modImplementation 'baritone-api-fabric:baritone-unoptimized-fabric-1.19.4-beta1'
         //include "baritone-api-fabric:baritone-unoptimized-fabric-1.19.4-beta1"
     } else {
-        m//odImplementation "cabaletta:baritone-unoptimized-fabric:1.19.4-beta1"
+        //modImplementation "cabaletta:baritone-unoptimized-fabric:1.19.4-beta1"
         //include "cabaletta:baritone-unoptimized-fabric:1.19.4-beta1"
     }
     //modImplementation 'baritone-api-fabric:baritone-api-fabric:1.6.3'
