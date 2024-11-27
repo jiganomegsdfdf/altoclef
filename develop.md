@@ -30,11 +30,11 @@ Click `File > New > Project from Version Control...` ![image](https://user-image
 
 If the gradle tab doesn't exist, try `View > Tool Windows > Gradle`
 
-## Get it Running (Command line)
+## Get it Running (Command line, Linux & macOS)
 
 1) Git Clone project
 2) `cd` into cloned local repo
-3) `sudo / doas chmod +x gradlew` (skip this step if you are on windows)
+3) `sudo / doas chmod +x gradlew`
 4) `./gradlew build` or `./gradlew runClient`
 
 ## Modifying Baritone (dev mode)
