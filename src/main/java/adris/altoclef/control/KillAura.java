@@ -8,7 +8,6 @@ import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
-import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.boss.WitherEntity;
 import net.minecraft.entity.mob.*;
@@ -72,30 +71,30 @@ public class KillAura {
     }
 
     public void tickEnd(AltoClef mod) {
+        PlayerSlot offhandSlot = PlayerSlot.OFFHAND_SLOT;
+        Item offhandItem = StorageHelper.getItemStackInSlot(offhandSlot).getItem();
         Optional<Entity> entities = _targets.stream().min(StlHelper.compareValues(entity -> entity.squaredDistanceTo(mod.getPlayer())));
         if (entities.isPresent() && mod.getPlayer().getHealth() >= 10 &&
                 !mod.getEntityTracker().entityFound(PotionEntity.class) && !mod.getFoodChain().needsToEat() &&
+                (mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD)) &&
                 (Double.isInfinite(_forceFieldRange) || entities.get().squaredDistanceTo(mod.getPlayer()) < _forceFieldRange * _forceFieldRange ||
                         entities.get().squaredDistanceTo(mod.getPlayer()) < 40) &&
                 !mod.getMLGBucketChain().isFallingOhNo(mod) && mod.getMLGBucketChain().doneMLG() &&
-                !mod.getMLGBucketChain().isChorusFruiting()) {
-            PlayerSlot offhandSlot = PlayerSlot.OFFHAND_SLOT;
-            Item offhandItem = StorageHelper.getItemStackInSlot(offhandSlot).getItem();
+                !mod.getMLGBucketChain().isChorusFruiting() &&
+                !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)) {
             if (entities.get().getClass() != CreeperEntity.class && entities.get().getClass() != HoglinEntity.class &&
                     entities.get().getClass() != ZoglinEntity.class && entities.get().getClass() != WardenEntity.class &&
-                    entities.get().getClass() != WitherEntity.class
-                    && (mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD))
-                    && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
-                    && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
+                    entities.get().getClass() != WitherEntity.class) {
                 LookHelper.lookAt(mod, entities.get().getEyePos());
                 ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
                 if (shieldSlot.getItem() != Items.SHIELD) {
                     mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
                 } else {
                     startShielding(mod);
+                    performDelayedAttack(mod);
+                    return;
                 }
             }
-            performDelayedAttack(mod);
         } else {
             stopShielding(mod);
         }
@@ -202,11 +201,11 @@ public class KillAura {
         _shielding = true;
         mod.getInputControls().hold(Input.SNEAK);
         mod.getInputControls().hold(Input.CLICK_RIGHT);
-        mod.getClientBaritone().getPathingBehavior().requestPause();
+        mod.getClientBaritone().getPathingBehavior().softCancelIfSafe();
         mod.getExtraBaritoneSettings().setInteractionPaused(true);
         if (!mod.getPlayer().isBlocking()) {
             ItemStack handItem = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot());
-            if (handItem.getItem().getComponents().contains(DataComponentTypes.FOOD)) {
+            if (handItem.isFood()) {
                 List<ItemStack> spaceSlots = mod.getItemStorage().getItemStacksPlayerInventory(false);
                 if (!spaceSlots.isEmpty()) {
                     for (ItemStack spaceSlot : spaceSlots) {
@@ -225,7 +224,7 @@ public class KillAura {
     public void stopShielding(AltoClef mod) {
         if (_shielding) {
             ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
-            if (cursor.getItem().getComponents().contains(DataComponentTypes.FOOD)) {
+            if (cursor.isFood()) {
                 Optional<Slot> toMoveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false).or(() -> StorageHelper.getGarbageSlot(mod));
                 if (toMoveTo.isPresent()) {
                     Slot garbageSlot = toMoveTo.get();
