@@ -10,9 +10,8 @@ import adris.altoclef.util.slots.PlayerSlot;
 import baritone.api.utils.input.Input;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.FoodComponent;
 import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.item.FoodComponent;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -25,13 +24,13 @@ import java.util.Optional;
 @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 public class FoodChain extends SingleTaskChain {
     private static FoodChainConfig _config;
-    private static boolean _hasFood;
 
     static {
         ConfigHelper.loadConfig("configs/food_chain_settings.json", FoodChainConfig::new, FoodChainConfig.class, newConfig -> _config = newConfig);
     }
 
     private final DragonBreathTracker _dragonBreathTracker = new DragonBreathTracker();
+    boolean _hasFood;
     private boolean _isTryingToEat = false;
     private boolean _requestFillup = false;
     private boolean _needsFood = false;
@@ -55,7 +54,6 @@ public class FoodChain extends SingleTaskChain {
         mod.getInputControls().hold(Input.CLICK_RIGHT);
         mod.getExtraBaritoneSettings().setInteractionPaused(true);
     }
-
     private void stopEat(AltoClef mod) {
         if (_isTryingToEat) {
             if (mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD)) {
@@ -122,20 +120,25 @@ public class FoodChain extends SingleTaskChain {
         Pair<Integer, Optional<Item>> calculation = calculateFood(mod);
         int _cachedFoodScore = calculation.getLeft();
         _cachedPerfectFood = calculation.getRight();
-        _hasFood = _cachedFoodScore > 0;
+
+        boolean hasFood = _cachedFoodScore > 0;
+        _hasFood = hasFood;
+
         // If we requested a fillup but we're full, stop.
         if (_requestFillup && mod.getPlayer().getHungerManager().getFoodLevel() >= 20) {
             _requestFillup = false;
         }
         // If we no longer have food, we no longer can eat.
-        if (!_hasFood) {
+        if (!hasFood) {
             _requestFillup = false;
         }
-        if (_hasFood && (needsToEat() || _requestFillup) && _cachedPerfectFood.isPresent() &&
+        if (hasFood && (needsToEat() || _requestFillup) && _cachedPerfectFood.isPresent() &&
                 !mod.getMLGBucketChain().isChorusFruiting() && !mod.getPlayer().isBlocking()) {
             Item toUse = _cachedPerfectFood.get();
             // Make sure we're not facing a container
-            LookHelper.tryAvoidingInteractable(mod);
+            if (!LookHelper.tryAvoidingInteractable(mod)) {
+                return Float.NEGATIVE_INFINITY;
+            }
             startEat(mod, toUse);
         } else {
             stopEat(mod);
@@ -210,7 +213,7 @@ public class FoodChain extends SingleTaskChain {
         if (foodLevel < _config.alwaysEatWhenBelowHungerAndPerfectFit && _cachedPerfectFood.isPresent()) {
             int need = 20 - foodLevel;
             Item best = _cachedPerfectFood.get();
-            int fills = (best.getComponents().get(DataComponentTypes.FOOD) != null) ? Objects.requireNonNull(best.getComponents().get(DataComponentTypes.FOOD)).nutrition() : -1;
+            int fills = (best.getFoodComponent() != null) ? best.getFoodComponent().getHunger() : -1;
             return fills == need;
         }
 
@@ -228,7 +231,7 @@ public class FoodChain extends SingleTaskChain {
         float saturation = player != null ? player.getHungerManager().getSaturationLevel() : 20;
         // Get best food item + calculate food total
         for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
-            if (stack.getItem().getComponents().contains(DataComponentTypes.FOOD)) {
+            if (stack.isFood()) {
                 // Ignore protected items
                 if (!ItemHelper.canThrowAwayStack(mod, stack)) continue;
 
@@ -237,17 +240,17 @@ public class FoodChain extends SingleTaskChain {
                     continue;
                 }
 
-                FoodComponent food = stack.getItem().getComponents().get(DataComponentTypes.FOOD);
+                FoodComponent food = stack.getItem().getFoodComponent();
 
                 assert food != null;
-                float hungerIfEaten = Math.min(hunger + food.nutrition(), 20);
-                float saturationIfEaten = Math.min(hungerIfEaten, saturation + food.saturation());
+                float hungerIfEaten = Math.min(hunger + food.getHunger(), 20);
+                float saturationIfEaten = Math.min(hungerIfEaten, saturation + food.getSaturationModifier());
                 float gainedSaturation = (saturationIfEaten - saturation);
                 float gainedHunger = (hungerIfEaten - hunger);
                 float hungerNotFilled = 20 - hungerIfEaten;
 
-                float saturationWasted = food.saturation() - gainedSaturation;
-                float hungerWasted = food.nutrition() - gainedHunger;
+                float saturationWasted = food.getSaturationModifier() - gainedSaturation;
+                float hungerWasted = food.getHunger() - gainedHunger;
 
                 boolean prioritizeSaturation = health < _config.prioritizeSaturationWhenBelowHealth;
                 float saturationGoodScore = prioritizeSaturation ? gainedSaturation * _config.foodPickPrioritizeSaturationSaturationMultiplier : gainedSaturation;
@@ -265,7 +268,7 @@ public class FoodChain extends SingleTaskChain {
                     bestFood = stack.getItem();
                 }
 
-                foodTotal += Objects.requireNonNull(stack.getItem().getComponents().get(DataComponentTypes.FOOD)).nutrition() * stack.getCount();
+                foodTotal += Objects.requireNonNull(stack.getItem().getFoodComponent()).getHunger() * stack.getCount();
             }
         }
 
